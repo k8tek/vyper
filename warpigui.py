@@ -57,6 +57,7 @@ import requests
 import socket
 import struct
 import smbus
+import adafruit_ina219
 
 logging.debug("All imports done")
 
@@ -84,8 +85,8 @@ Page = 1
 
 def InterruptLeft(_):
     global Page
-    # Loop over Pager 1,2,3
-    if Page > 2:
+    # Loop over Pager 1,2,3,4,5
+    if Page > 4:
         Page = 1
     else:
         Page = Page + 1
@@ -168,6 +169,10 @@ kissubproc = 0
 autostart = 10
 autostarted = False
 
+# Define INA219 sensor
+i2c_bus = busio.I2C(board.SCL, board.SDA)
+ina = adafruit_ina219.INA219(i2c_bus)
+
 
 def startservice():
     logging.info("Starting GPSD / Kismet")
@@ -222,24 +227,6 @@ def fshutdown():
     logging.debug("shutdown -h triggered")
     quit()
 
-
-def readVoltage(bus):
-    address = 0x36
-    read = bus.read_word_data(address, 2)
-    swapped = struct.unpack("<H", struct.pack(">H", read))[0]
-    voltage = swapped * 1.25 / 1000 / 16
-    return voltage
-
-
-def readCapacity(bus):
-    address = 0x36
-    read = bus.read_word_data(address, 4)
-    swapped = struct.unpack("<H", struct.pack(">H", read))[0]
-    capacity = swapped / 256
-    return capacity
-
-
-bus = smbus.SMBus(1)
 
 logging.debug("All setup, go into loop")
 
@@ -381,6 +368,45 @@ while looping:
         draw.text(
             (0, 10),
             f"Battery Voltage: {readVoltage(bus):.2f}V",
+            font=font,
+            fill=255,
+        )
+
+    if Page == 5:
+        # Page 5 shows load information
+        Vout = round(ina.voltage(), 3)
+        Iout = round(ina.current(), 2)
+        Power = round(ina.power(), 3)
+        Shunt_V = round(ina.shunt_voltage(), 3)
+        Load_V = round((Vout + (Shunt_V / 1000)), 3)
+
+        draw.text(
+            (0, 0),
+            f"Vout: {Vout:.3f}V",
+            font=font,
+            fill=255,
+        )
+        draw.text(
+            (0, 10),
+            f"Iout: {Iout:.2f}A",
+            font=font,
+            fill=255,
+        )
+        draw.text(
+            (0, 20),
+            f"Power: {Power:.3f}W",
+            font=font,
+            fill=255,
+        )
+        draw.text(
+            (0, 30),
+            f"Shunt Voltage: {Shunt_V:.3f}V",
+            font=font,
+            fill=255,
+        )
+        draw.text(
+            (0, 40),
+            f"Load Voltage: {Load_V:.3f}V",
             font=font,
             fill=255,
         )
