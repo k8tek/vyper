@@ -414,7 +414,7 @@ while looping:
         )
         draw.text(
             (0, 20),
-            f"Power: {Power},mW",
+            f"Power: {Power}mW",
             font=font,
             fill=255,
         )
