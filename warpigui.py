@@ -55,7 +55,7 @@ import RPi.GPIO as GPIO
 import json
 import requests
 import socket
-import adafruit_ina219
+from ina219 import INA219, DeviceRangeError
 
 logging.debug("All imports done")
 
@@ -170,9 +170,7 @@ autostarted = False
 # Define INA219 calibration values
 SHUNT_OHMS = 0.01
 MAX_EXPECTED_AMPS = 8.0
-
-# Define INA219 sensor with calibration values
-ina = adafruit_ina219.INA219(SHUNT_OHMS, MAX_EXPECTED_AMPS, busnum=1, address=0x40)
+ina = INA219(SHUNT_OHMS, MAX_EXPECTED_AMPS, busnum=1)
 ina.configure(ina.RANGE_16V)
 
 def startservice():
