@@ -63,7 +63,7 @@ from ina219 import INA219, DeviceRangeError
 SHUNT_OHMS = 0.01
 MAX_EXPECTED_AMPS = 8.0
 ina = INA219(SHUNT_OHMS, MAX_EXPECTED_AMPS, busnum=1)
-ina.configure(ina.RANGE_16V)
+ina.configure(ina.RANGE_24V)
 
 logging.debug("All imports done")
 
@@ -402,25 +402,25 @@ while looping:
 
         draw.text(
             (0, 0),
-            f"Vout: {Vout}V",
+            f"Voltage Out: {Vout}V",
             font=font,
             fill=255,
         )
         draw.text(
             (0, 10),
-            f"Iout: {Iout}A",
+            f"Current Out {Iout}mA",
             font=font,
             fill=255,
         )
         draw.text(
             (0, 20),
-            f"Power: {Power}W",
+            f"Power: {Power},mW",
             font=font,
             fill=255,
         )
         draw.text(
             (0, 30),
-            f"Shunt Voltage: {Shunt_V}V",
+            f"Shunt Voltage: {Shunt_V}mV",
             font=font,
             fill=255,
         )
