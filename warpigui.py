@@ -167,12 +167,13 @@ kissubproc = 0
 autostart = 10
 autostarted = False
 
-# Define INA219 sensor
-i2c_bus = busio.I2C(board.SCL, board.SDA)
-ina = adafruit_ina219.INA219(i2c_bus, address=0x40)
+# Define INA219 calibration values
+SHUNT_OHMS = 0.01
+MAX_EXPECTED_AMPS = 8.0
 
-# Set INA219 calibration values (adjust according to your hardware)
-ina.configure()
+# Define INA219 sensor with calibration values
+ina = adafruit_ina219.INA219(SHUNT_OHMS, MAX_EXPECTED_AMPS, busnum=1, address=0x40)
+ina.configure(ina.RANGE_16V)
 
 def startservice():
     logging.info("Starting GPSD / Kismet")
@@ -180,7 +181,6 @@ def startservice():
     global kisuselog, kiserrlog, gpsrun, kissubproc
     kissubproc = subprocess.Popen(["kismet"], stdout=kisuselog, stderr=kiserrlog)
     gpsrun = True
-
 
 def stopservice():
     logging.info("Stopping GPSD / Kismet")
@@ -199,7 +199,6 @@ def stopservice():
     except subprocess.TimeoutExpired:
         logging.debug("timeout during kill gpsd happened")
 
-
 def freboot():
     logging.info("Rebooting")
     global looping
@@ -208,7 +207,6 @@ def freboot():
     disp.show()
     subprocess.Popen(["reboot"])
     quit()
-
 
 def fshutdown():
     global looping, kisuselog, kiserrlog
@@ -226,205 +224,3 @@ def fshutdown():
     subprocess.call("sudo shutdown -h now", shell=True)
     logging.debug("shutdown -h triggered")
     quit()
-
-
-logging.debug("All setup, go into loop")
-
-looping = True
-
-while looping:
-    draw.rectangle((0, 0, width, height), outline=0, fill=0)
-
-    if life:
-        draw.rectangle((120, 56, width, height), outline=0, fill=255)
-        life = False
-    else:
-        draw.rectangle((120, 56, width, height), outline=0, fill=0)
-        life = True
-
-    cpu = psutil.cpu_percent()
-    mem = dict(psutil.virtual_memory()._asdict())["percent"]
-    swp = dict(psutil.swap_memory()._asdict())["percent"]
-    f = open("/sys/class/thermal/thermal_zone0/temp")
-    t = f.read()
-    f.close()
-    ct = int(t) / 1000.0
-
-    if cpu > 50:
-        subprocess.call(
-            "ps aux | sort -nrk 3,3 | head -n 10 >> /media/usb/highcpu.log", shell=True
-        )
-        logging.debug(f"High CPU: {cpu}")
-        sleeptime = 3
-    else:
-        sleeptime = 1
-
-    if Page == 1:
-        # Page 1 is the main screen, it shows information while the device runs.
-        draw.text(
-            (0, 0),
-            f"CPU: {cpu / 100:>4.0%}  M: {mem / 100:>4.0%} T: {ct:5.1f}",
-            font=font,
-            fill=255,
-        )
-        draw.text(
-            (0, 54), strftime("%Y-%m-%d   %H:%M:%S", localtime()), font=font, fill=255
-        )
-
-        if gpsrun:
-            try:
-                gpsd.connect()
-                packet = gpsd.get_current()
-                draw.text(
-                    (0, 10),
-                    f"GPS: {packet.mode}  SAT: {packet.sats:>3}  Use: {packet.sats_valid:>3}",
-                    font=font,
-                    fill=255,
-                )
-                if packet.mode == 0:
-                    draw.rectangle((115, 20, width - 2, 10), outline=0, fill=0)
-                if packet.mode == 1:
-                    draw.rectangle((120, 18, width - 4, 14), outline=255, fill=0)
-                if packet.mode == 2:
-                    draw.rectangle((120, 18, width - 4, 14), outline=255, fill=1)
-                if packet.mode == 3:
-                    draw.rectangle((115, 20, width - 2, 10), outline=255, fill=1)
-                resp = requests.get(
-                    "http://127.0.0.1:2501/system/status.json",
-                    auth=(httpd_username, httpd_password),
-                )
-                data = resp.json()
-                devices = data["kismet.system.devices.count"]
-                kismetmemory = data["kismet.system.memory.rss"] / 1024
-                draw.text((0, 20), f"D {devices:>7}", font=fontbig, fill=255)
-                draw.text(
-                    (0, 44),
-                    f"Kismet mem: {kismetmemory:>4.0f}mb",
-                    font=font,
-                    fill=255,
-                )
-            except Exception as e:
-                logging.error(f"An exception occurred {e}")
-
-    if Page == 2:
-        # Page 2 shows the IP from the system
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.settimeout(0)
-        try:
-            s.connect(("10.254.254.254", 1))
-            rpiIP = s.getsockname()[0]
-        except Exception:
-            rpiIP = "127.0.0.1"
-        finally:
-            s.close()
-        draw.text(
-            (0, 0),
-            f"SSH IP: {rpiIP}",
-            font=font,
-            fill=255,
-        )
-
-    if Page == 3:
-        # Page 3 gives a short info about the buttons
-        draw.text(
-            (0, 0),
-            f"#5 button = reboot",
-            font=font,
-            fill=255,
-        )
-        draw.text(
-            (0, 10),
-            f"#6 button = shutdown",
-            font=font,
-            fill=255,
-        )
-        draw.text(
-            (0, 20),
-            f"up arrow = start",
-            font=font,
-            fill=255,
-        )
-        draw.text(
-            (0, 30),
-            f"down arrow = stop",
-            font=font,
-            fill=255,
-        )
-        draw.text(
-            (0, 40),
-            f"left arrow = screen",
-            font=font,
-            fill=255,
-        )
-
-    if Page == 4:
-        # Page 4 shows battery capacity and voltage
-        draw.text(
-            (0, 0),
-            f"Battery Capacity: {readCapacity(bus):.2f}%",
-            font=font,
-            fill=255,
-        )
-        draw.text(
-            (0, 10),
-            f"Battery Voltage: {readVoltage(bus):.2f}V",
-            font=font,
-            fill=255,
-        )
-
-    if Page == 5:
-        # Page 5 shows load information
-        Vout = round(ina.voltage(), 3)
-        Iout = round(ina.current(), 2)
-        Power = round(ina.power(), 3)
-        Shunt_V = round(ina.shunt_voltage(), 3)
-        Load_V = round((Vout + (Shunt_V / 1000)), 3)
-
-        draw.text(
-            (0, 0),
-            f"Vout: {Vout:.3f}V",
-            font=font,
-            fill=255,
-        )
-        draw.text(
-            (0, 10),
-            f"Iout: {Iout:.2f}A",
-            font=font,
-            fill=255,
-        )
-        draw.text(
-            (0, 20),
-            f"Power: {Power:.3f}W",
-            font=font,
-            fill=255,
-        )
-        draw.text(
-            (0, 30),
-            f"Shunt Voltage: {Shunt_V:.3f}V",
-            font=font,
-            fill=255,
-        )
-        draw.text(
-            (0, 40),
-            f"Load Voltage: {Load_V:.3f}V",
-            font=font,
-            fill=255,
-        )
-
-    if not autostarted:
-        if autostart > 0:
-            autostart = autostart - 1
-        else:
-            autostarted = True
-            if not gpsrun:
-                startservice()
-
-    # draw the screen:
-    disp.image(image)
-    disp.show()
-
-    # wait a bit:
-    sleep(sleeptime)
-
-while True:
-    sleep(10)
