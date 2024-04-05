@@ -55,8 +55,6 @@ import RPi.GPIO as GPIO
 import json
 import requests
 import socket
-import struct
-import smbus
 import adafruit_ina219
 
 logging.debug("All imports done")
@@ -171,8 +169,10 @@ autostarted = False
 
 # Define INA219 sensor
 i2c_bus = busio.I2C(board.SCL, board.SDA)
-ina = adafruit_ina219.INA219(i2c_bus)
+ina = adafruit_ina219.INA219(i2c_bus, address=0x40)
 
+# Set INA219 calibration values (adjust according to your hardware)
+ina.configure()
 
 def startservice():
     logging.info("Starting GPSD / Kismet")
@@ -282,13 +282,13 @@ while looping:
                     fill=255,
                 )
                 if packet.mode == 0:
-                    draw.rectangle((115, 10, width - 2, 20), outline=0, fill=0)
+                    draw.rectangle((115, 20, width - 2, 10), outline=0, fill=0)
                 if packet.mode == 1:
-                    draw.rectangle((120, 14, width - 4, 18), outline=255, fill=0)
+                    draw.rectangle((120, 18, width - 4, 14), outline=255, fill=0)
                 if packet.mode == 2:
-                    draw.rectangle((120, 14, width - 4, 18), outline=255, fill=1)
+                    draw.rectangle((120, 18, width - 4, 14), outline=255, fill=1)
                 if packet.mode == 3:
-                    draw.rectangle((115, 10, width - 2, 20), outline=255, fill=1)
+                    draw.rectangle((115, 20, width - 2, 10), outline=255, fill=1)
                 resp = requests.get(
                     "http://127.0.0.1:2501/system/status.json",
                     auth=(httpd_username, httpd_password),
