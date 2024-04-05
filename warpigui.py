@@ -222,3 +222,205 @@ def fshutdown():
     subprocess.call("sudo shutdown -h now", shell=True)
     logging.debug("shutdown -h triggered")
     quit()
+
+def display_page1():
+    draw.text(
+        (0, 0),
+        f"CPU: {cpu / 100:>4.0%}  M: {mem / 100:>4.0%} T: {ct:5.1f}",
+        font=font,
+        fill=255,
+    )
+    draw.text(
+        (0, 54), strftime("%Y-%m-%d   %H:%M:%S", localtime()), font=font, fill=255
+    )
+
+    if gpsrun:
+        try:
+            gpsd.connect()
+            packet = gpsd.get_current()
+            draw.text(
+                (0, 10),
+                f"GPS: {packet.mode}  SAT: {packet.sats:>3}  Use: {packet.sats_valid:>3}",
+                font=font,
+                fill=255,
+            )
+            if packet.mode == 0:
+                draw.rectangle((115, 20, width - 2, 10), outline=0, fill=0)
+            if packet.mode == 1:
+                draw.rectangle((120, 18, width - 4, 14), outline=255, fill=0)
+            if packet.mode == 2:
+                draw.rectangle((120, 18, width - 4, 14), outline=255, fill=1)
+            if packet.mode == 3:
+                draw.rectangle((115, 20, width - 2, 10), outline=255, fill=1)
+            resp = requests.get(
+                "http://127.0.0.1:2501/system/status.json",
+                auth=(httpd_username, httpd_password),
+            )
+            data = resp.json()
+            devices = data["kismet.system.devices.count"]
+            kismetmemory = data["kismet.system.memory.rss"] / 1024
+            draw.text((0, 20), f"D {devices:>7}", font=fontbig, fill=255)
+            draw.text(
+                (0, 44),
+                f"Kismet mem: {kismetmemory:>4.0f}mb",
+                font=font,
+                fill=255,
+            )
+        except Exception as e:
+            logging.error(f"An exception occurred {e}")
+
+def display_page2():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.settimeout(0)
+    try:
+        s.connect(("10.254.254.254", 1))
+        rpiIP = s.getsockname()[0]
+    except Exception:
+        rpiIP = "127.0.0.1"
+    finally:
+        s.close()
+    draw.text(
+        (0, 0),
+        f"SSH IP: {rpiIP}",
+        font=font,
+        fill=255,
+    )
+
+def display_page3():
+    draw.text(
+        (0, 0),
+        f"#5 button = reboot",
+        font=font,
+        fill=255,
+    )
+    draw.text(
+        (0, 10),
+        f"#6 button = shutdown",
+        font=font,
+        fill=255,
+    )
+    draw.text(
+        (0, 20),
+        f"up arrow = start",
+        font=font,
+        fill=255,
+    )
+    draw.text(
+        (0, 30),
+        f"down arrow = stop",
+        font=font,
+        fill=255,
+    )
+    draw.text(
+        (0, 40),
+        f"left arrow = screen",
+        font=font,
+        fill=255,
+    )
+
+def display_page4():
+    voltage = ina.voltage()
+    current = ina.current()
+    power = ina.power()
+    shunt_voltage = ina.shunt_voltage()
+    load_voltage = voltage + (shunt_voltage / 1000)
+
+    draw.text(
+        (0, 0),
+        f"Voltage: {voltage:.3f}V",
+        font=font,
+        fill=255,
+    )
+    draw.text(
+        (0, 10),
+        f"Current: {current:.2f}A",
+        font=font,
+        fill=255,
+    )
+    draw.text(
+        (0, 20),
+        f"Power: {power:.3f}W",
+        font=font,
+        fill=255,
+    )
+    draw.text(
+        (0, 30),
+        f"Shunt Voltage: {shunt_voltage:.3f}V",
+        font=font,
+        fill=255,
+    )
+    draw.text(
+        (0, 40),
+        f"Load Voltage: {load_voltage:.3f}V",
+        font=font,
+        fill=255,
+    )
+
+def display_page5():
+    # Add your code here for displaying the INA219 sensor data
+    Vout = round(ina.voltage(), 3)
+    Iout = round(ina.current(), 2)
+    Power = round(ina.power(), 3)
+    Shunt_V = round(ina.shunt_voltage(), 3)
+    Load_V  = round((Vout + (Shunt_V/1000)), 3)
+
+    draw.text(
+        (0, 0),
+        f"Vout: {Vout}V",
+        font=font,
+        fill=255,
+    )
+    draw.text(
+        (0, 10),
+        f"Iout: {Iout}A",
+        font=font,
+        fill=255,
+    )
+    draw.text(
+        (0, 20),
+        f"Power: {Power}W",
+        font=font,
+        fill=255,
+    )
+    draw.text(
+        (0, 30),
+        f"Shunt Voltage: {Shunt_V}V",
+        font=font,
+        fill=255,
+    )
+    draw.text(
+        (0, 40),
+        f"Load Voltage: {Load_V}V",
+        font=font,
+        fill=255,
+    )
+
+
+def display_page(page):
+    draw.rectangle((0, 0, width, height), outline=0, fill=0)
+    if page == 1:
+        display_page1()
+    elif page == 2:
+        display_page2()
+    elif page == 3:
+        display_page3()
+    elif page == 4:
+        display_page4()
+    elif page == 5:
+        display_page5()
+    disp.image(image)
+    disp.show()
+
+
+logging.debug("Start the loop")
+
+while life:
+    try:
+        cpu = psutil.cpu_percent(interval=1)
+        mem = psutil.virtual_memory().percent
+        ct = psutil.sensors_temperatures()["cpu-thermal"][0][1]
+        logging.debug(f"CPU: {cpu} M: {mem} T: {ct}")
+        display_page(Page)
+    except Exception as e:
+        logging.error(f"An exception occurred {e}")
+
